@@ -15,6 +15,7 @@ module.exports.passport = {
     strategy: require('passport-local').Strategy
   },
 
+  /*
   basic: {
     strategy: require('passport-http').BasicStrategy,
     protocol: 'basic'
@@ -26,7 +27,6 @@ module.exports.passport = {
     strategy: require('passport-google').Strategy
   }
 
-  /*
   twitter: {
     name: 'Twitter',
     protocol: 'oauth',
