@@ -49,20 +49,20 @@ exports.createUser = function (_user, next) {
         }
 
       }
-      
+
       return next(err);
     }
 
     Passport.create({
-      protocol : 'local'
-    , password : password
-    , user     : user.id
+      protocol : 'local',
+      password : password,
+      user     : user.id
     }, function (err, passport) {
       if (err) {
         if (err.code === 'E_VALIDATION') {
           throw new Error('Error.Passport.Password.Invalid');
         }
-        
+
         return user.destroy(function (destroyErr) {
           next(destroyErr || err);
         });
@@ -85,12 +85,12 @@ exports.createUser = function (_user, next) {
  * @param {Function} next
  */
 exports.connect = function (req, res, next) {
-  var user     = req.user
-    , password = req.param('password');
+  var user     = req.user,
+      password = req.param('password');
 
   Passport.findOne({
-    protocol : 'local'
-  , user     : user.id
+    protocol : 'local',
+    user     : user.id
   }, function (err, passport) {
     if (err) {
       return next(err);
@@ -98,9 +98,9 @@ exports.connect = function (req, res, next) {
 
     if (!passport) {
       Passport.create({
-        protocol : 'local'
-      , password : password
-      , user     : user.id
+        protocol : 'local',
+        password : password,
+        user     : user.id
       }, function (err, passport) {
         next(err, user);
       });
@@ -124,13 +124,12 @@ exports.connect = function (req, res, next) {
  * @param {Function} next
  */
 exports.login = function (req, identifier, password, next) {
-  var isEmail = validateEmail(identifier)
-    , query   = {};
+  var isEmail = validateEmail(identifier),
+      query   = {};
 
   if (isEmail) {
     query.email = identifier;
-  }
-  else {
+  } else {
     query.username = identifier;
   }
 
@@ -150,27 +149,39 @@ exports.login = function (req, identifier, password, next) {
     }
 
     Passport.findOne({
-      protocol : 'local'
-    , user     : user.id
+      protocol : 'local',
+      user     : user.id
     }, function (err, passport) {
-      if (passport) {
-        passport.validatePassword(password, function (err, res) {
+      if (!passport) {
+        req.flash('error', 'Error.Passport.Password.NotSet');
+        return next(null, false);
+      }
+
+      passport.validatePassword(password, function (err, res) {
+        if (err) {
+          return next(err);
+        }
+
+        if (!res) {
+          req.flash('error', 'Error.Passport.Password.Wrong');
+          return next(null, false);
+        }
+
+        // Give the user a new bearerToken to use!
+        BearerToken.create({
+          remoteAddress: req.connection.remoteAddress,
+          passport: passport.id
+        }).exec(function (err, bearerToken) {
           if (err) {
             return next(err);
           }
 
-          if (!res) {
-            req.flash('error', 'Error.Passport.Password.Wrong');
-            return next(null, false);
-          } else {
-            return next(null, user, passport);
-          }
+          // New token created, add it to user and GO!
+          user.token = bearerToken.token;
+
+          return next(null, user, passport);
         });
-      }
-      else {
-        req.flash('error', 'Error.Passport.Password.NotSet');
-        return next(null, false);
-      }
+      });
     });
   });
 };
